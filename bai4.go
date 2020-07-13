@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 )
 
 /*
@@ -27,12 +28,13 @@ func b4() {
 	buffReadData := make(chan *DataLine, 10)
 	defer close(buffReadData)
 	var wg sync.WaitGroup
-
 	f, _ := os.Open("file.txt")
 	defer f.Close()
-
-	for i := 1; i <= 3; i++ {
-		go printData(buffReadData, &wg)
+	numberWorker := 3
+	done := make([]chan bool, numberWorker)
+	for i := 0; i < numberWorker; i++ {
+		done[i] = make(chan bool)
+		go printData(buffReadData, &wg, done[i])
 	}
 
 	scanner := bufio.NewScanner(f)
@@ -40,22 +42,30 @@ func b4() {
 	count := 1
 
 	for scanner.Scan() {
+		wg.Add(1)
 		dataLine := &DataLine{content: scanner.Text(), indentity: count}
 		count++
 		buffReadData <- dataLine
-		wg.Add(1)
+
 	}
 
 	wg.Wait()
+	for _, x := range done {
+		x <- true
 
+	}
+	time.Sleep(10 * time.Second)
 }
 
-func printData(jobs chan *DataLine, wg *sync.WaitGroup) {
+func printData(jobs chan *DataLine, wg *sync.WaitGroup, done chan bool) {
 	for {
 		select {
 		case data := <-jobs:
 			log.Printf("Hang %v : %v xong!\n", data.indentity, data.content)
 			wg.Done()
+		case <-done:
+			log.Println("Da xong Worker")
+			break
 		}
 	}
 
